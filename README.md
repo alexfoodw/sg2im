@@ -3,6 +3,7 @@
 This code is forked from [this](https://github.com/google/sg2im) original source code, and adapted to include a knowledge graph contextual information augmentation.
 
 The code is based on the following key paper:
+
 **<a href="https://arxiv.org/abs/1804.01622">Image Generation from Scene Graphs</a>**
 <br>
 <a href="http://cs.stanford.edu/people/jcjohns/">Justin Johnson</a>,
