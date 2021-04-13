@@ -1,7 +1,8 @@
-# sg2im
+# Image Generation from Scene Graphs with Commonsense Knowledge
 
-This is the code for the paper
+This code is forked from [this](https://github.com/google/sg2im) original source code, and adapted to include a knowledge graph contextual information augmentation.
 
+The code is based on the following key paper:
 **<a href="https://arxiv.org/abs/1804.01622">Image Generation from Scene Graphs</a>**
 <br>
 <a href="http://cs.stanford.edu/people/jcjohns/">Justin Johnson</a>,
@@ -10,46 +11,7 @@ This is the code for the paper
 <br>
 Presented at [CVPR 2018](http://cvpr2018.thecvf.com/)
 
-Please note that this is not an officially supported Google product.
-
-A **scene graph** is a structured representation of a visual scene where nodes represent *objects* in the scene and edges represent *relationships* between objects. In this paper we present and end-to-end neural network model that inputs a scene graph and outputs an image.
-
-Below we show some example scene graphs along with images generated from those scene graphs using our model. By modifying the input scene graph we can exercise fine-grained control over the objects in the generated image.
-
-<div align='center'>
-  <img src='images/sheep/sg000000.png' width='112px'>
-  <img src='images/sheep/sg000001.png' width='112px'>
-  <img src='images/sheep/sg000002.png' width='112px'>
-  <img src='images/sheep/sg000003.png' width='112px'>
-  <img src='images/sheep/sg000004.png' width='112px'>
-  <img src='images/sheep/sg000005.png' width='112px'>
-  <img src='images/sheep/sg000006.png' width='112px'>
-  <br>
-  <img src='images/sheep/img000000.png' height='112px'>
-  <img src='images/sheep/img000001.png' height='112px'>
-  <img src='images/sheep/img000002.png' height='112px'>
-  <img src='images/sheep/img000003.png' height='112px'>
-  <img src='images/sheep/img000004.png' height='112px'>
-  <img src='images/sheep/img000005.png' height='112px'>
-  <img src='images/sheep/img000006.png' height='112px'>
-</div>
-
-If you find this code useful in your research then please cite
-```
-@inproceedings{johnson2018image,
-  title={Image Generation from Scene Graphs},
-  author={Johnson, Justin and Gupta, Agrim and Fei-Fei, Li},
-  booktitle={CVPR},
-  year={2018}
-}
-```
-
-## Model
-The input scene graph is processed with a *graph convolution network* which passes information along edges to compute embedding vectors for all objects. These vectors are used to predict bounding boxes and segmentation masks for all objects, which are combined to form a coarse *scene layout*. The layout is passed to a *cascaded refinement network* (Chen an Koltun, ICCV 2017) which generates an output image at increasing spatial scales. The model is trained adversarially against a pair of *discriminator networks* which ensure that output images look realistic.
-
-<div align='center'>
-  <img src='images/system.png' width='1000px'>
-</div>
+For details about this project's experiment and results, please refer to the pdf (report.pdf) or a brief webpage [here](https://alexfoodw.github.io/)
 
 ## Setup
 All code was developed and tested on Ubuntu 16.04 with Python 3.5 and PyTorch 0.4.
