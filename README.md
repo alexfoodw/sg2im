@@ -12,7 +12,7 @@ The code is based on the following key paper:
 <br>
 Presented at [CVPR 2018](http://cvpr2018.thecvf.com/)
 
-For details about this project's experiment and results, please refer to the pdf (report.pdf) or a brief webpage [here](https://alexfoodw.github.io/)
+For details about this project's experiment and results, please refer to the pdf (report.pdf) or a brief webpage [here](https://alexfoodw.github.io/).
 
 ## Setup
 All code was developed and tested on Ubuntu 16.04 with Python 3.5 and PyTorch 0.4.
