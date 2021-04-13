@@ -18,9 +18,11 @@ import argparse, json, os
 from collections import Counter, defaultdict
 
 import numpy as np
+import pandas as pd
 import h5py
-from scipy.misc import imread, imresize
-
+#from scipy.imageio import imread, imresize
+from imageio import imread
+from tqdm import tqdm
 
 """
 vocab for objects contains a special entry "__image__" intended to be used for
@@ -55,6 +57,7 @@ parser.add_argument('--train_split', default='train')
 
 # Arguments for objects
 parser.add_argument('--min_object_instances', default=2000, type=int)
+parser.add_argument('--max_object_instances', default=50000, type=int)
 parser.add_argument('--min_attribute_instances', default=2000, type=int)
 parser.add_argument('--min_object_size', default=32, type=int)
 parser.add_argument('--min_objects_per_image', default=3, type=int)
@@ -71,6 +74,8 @@ parser.add_argument('--output_vocab_json',
     default=os.path.join(VG_DIR, 'vocab.json'))
 parser.add_argument('--output_h5_dir', default=VG_DIR)
 
+# KG Augmentation
+parser.add_argument('--kg_aug', action='store_true')
 
 def main(args):
   print('Loading image info from "%s"' % args.images_json)
@@ -86,6 +91,15 @@ def main(args):
 
   obj_aliases = load_aliases(args.object_aliases)
   rel_aliases = load_aliases(args.relationship_aliases)
+  
+  print('Loading relationshps from "%s"' % args.relationships_json)
+  with open(args.relationships_json, 'r') as f:
+    relationships = json.load(f)
+  
+  kg=None
+  if args.kg_aug:
+      print('Building knowledge graph from rships')
+      kg = build_KG(relationships, obj_aliases, rel_aliases, k=10)
 
   print('Loading objects from "%s"' % args.objects_json)
   with open(args.objects_json, 'r') as f:
@@ -94,12 +108,12 @@ def main(args):
   # Vocab for objects and relationships
   vocab = {}
   train_ids = splits[args.train_split]
-  create_object_vocab(args, train_ids, objects, obj_aliases, vocab)
+  key_object_names = create_object_vocab(args, train_ids, objects, obj_aliases, vocab, kg=kg)
 
   print('Loading attributes from "%s"' % args.attributes_json)
   with open(args.attributes_json, 'r') as f:
     attributes = json.load(f)
-
+ 
   # Vocab for attributes
   create_attribute_vocab(args, train_ids, attributes, vocab)
 
@@ -107,16 +121,12 @@ def main(args):
   print('After filtering there are %d object instances'
         % len(object_id_to_obj))
 
-  print('Loading relationshps from "%s"' % args.relationships_json)
-  with open(args.relationships_json, 'r') as f:
-    relationships = json.load(f)
-
   create_rel_vocab(args, train_ids, relationships, object_id_to_obj,
                    rel_aliases, vocab)
 
   print('Encoding objects and relationships ...')
   numpy_arrays = encode_graphs(args, splits, objects, relationships, vocab,
-                               object_id_to_obj, attributes)
+                               object_id_to_obj, attributes, kg=kg, key_object_names=key_object_names)
 
   print('Writing HDF5 output files')
   for split_name, split_arrays in numpy_arrays.items():
@@ -213,8 +223,36 @@ def load_aliases(alias_path):
         aliases[s] = line[0]
   return aliases
 
+def build_KG(rships, obj_alias, rel_aliases, k=10):
+# a df, where each entry is an obj, triple string (p, other obj, s/o, count)
+  kg = []
+  for i, image in enumerate(rships):
+    for rel in image['relationships']:
+      s = rel['subject']
+      if 'name' in s:
+        s_name = obj_alias.get(s['name'], s['name'])
+      else:
+        s_name = obj_alias.get(s['names'][0], s['names'][0])
 
-def create_object_vocab(args, image_ids, objects, aliases, vocab):
+      o = rel['object']
+      if 'name' in o:
+        o_name = obj_alias.get(o['name'], o['name'])
+      else:
+        o_name = obj_alias.get(o['names'][0], o['names'][0])
+
+      pred = rel['predicate'].lower().strip()
+      pred = rel_aliases.get(pred, pred)
+      rel['predicate'] = pred
+      kg.append([s_name, '%s %s %s'%(s_name, pred, o_name), o_name])
+      kg.append([o_name, '%s %s %s'%(s_name, pred, o_name), s_name])
+  
+  kg_df = pd.DataFrame(kg, columns=['obj', 'triple', 'other_obj'])
+  kg_df = kg_df.groupby(kg_df.columns.tolist(),as_index=False).size()
+  kg_df = kg_df.sort_values('size', ascending=False).reset_index(drop=True)
+  kg_df = kg_df.groupby('obj').head(k).reset_index(drop=True)
+  return kg_df
+
+def create_object_vocab(args, image_ids, objects, aliases, vocab, kg=None):
   image_ids = set(image_ids)
 
   print('Making object vocab from %d training images' % len(image_ids))
@@ -230,19 +268,36 @@ def create_object_vocab(args, image_ids, objects, aliases, vocab):
 
   object_names = ['__image__']
   for name, count in object_name_counter.most_common():
-    if count >= args.min_object_instances:
+    if count >= args.min_object_instances and count <= args.max_object_instances:
+      print(name, count)
       object_names.append(name)
-  print('Found %d object categories with >= %d training instances' %
-        (len(object_names), args.min_object_instances))
-
+  print('Found %d object categories with >= %d training instances & <= %d training instances' %
+        (len(object_names), args.min_object_instances, args.max_object_instances))
+  
+  key_object_names = object_names.copy()
+  if args.kg_aug:
+    object_names_copy = object_names.copy()
+    partner_added = 0
+    # augment in top k linked objects, k=5
+    for name in object_names_copy:
+      obj_kg = kg[kg['obj'] == name]
+      obj_kg_topk_partners = list(obj_kg['other_obj'])
+        
+      for partner in obj_kg_topk_partners:
+        if partner not in object_names:
+            object_names.append(partner)
+            partner_added += 1
+    print('Added %d object categories from KG aug' % partner_added)
+    
   object_name_to_idx = {}
   object_idx_to_name = []
   for idx, name in enumerate(object_names):
     object_name_to_idx[name] = idx
     object_idx_to_name.append(name)
-
+    
   vocab['object_name_to_idx'] = object_name_to_idx
   vocab['object_idx_to_name'] = object_idx_to_name
+  return key_object_names[1:]
 
 def create_attribute_vocab(args, image_ids, attributes, vocab):
   image_ids = set(image_ids)
@@ -313,7 +368,7 @@ def filter_objects(args, objects, aliases, vocab, splits):
 
 
 def create_rel_vocab(args, image_ids, relationships, object_id_to_obj,
-                     rel_aliases, vocab):
+                     rel_aliases, vocab, kg=None):
   pred_counter = defaultdict(int)
   image_ids_set = set(image_ids)
   for image in relationships:
@@ -350,7 +405,7 @@ def create_rel_vocab(args, image_ids, relationships, object_id_to_obj,
 
 
 def encode_graphs(args, splits, objects, relationships, vocab,
-                  object_id_to_obj, attributes):
+                  object_id_to_obj, attributes, kg=None, key_object_names=None):
 
   image_id_to_objects = {}
   for image in objects:
@@ -382,8 +437,9 @@ def encode_graphs(args, splits, objects, relationships, vocab,
     attribute_ids = []
     attributes_per_object = []
     object_attributes = []
-    for image_id in image_ids:
+    for image_id in tqdm(image_ids):
       image_object_ids = []
+      image_object_names_str = [] #kg
       image_object_names = []
       image_object_boxes = []
       object_id_to_idx = {}
@@ -394,6 +450,7 @@ def encode_graphs(args, splits, objects, relationships, vocab,
         obj = object_id_to_obj[object_id]
         object_id_to_idx[object_id] = len(image_object_ids)
         image_object_ids.append(object_id)
+        image_object_names_str.append(obj['name']) #kg
         image_object_names.append(obj['name_idx'])
         image_object_boxes.append(obj['box'])
       num_objects = len(image_object_ids)
@@ -405,6 +462,29 @@ def encode_graphs(args, splits, objects, relationships, vocab,
       if too_many:
         skip_stats['too_many_objects'] += 1
         continue
+      
+      if args.kg_aug:
+        key_obj_found = False
+        for obj_name in image_object_names_str:
+          if obj_name in key_object_names:
+            key_obj_found = True
+            break
+        if not key_obj_found:
+          skip_stats['no_key_obj'] += 1
+          continue  
+#         # filter out images with no key object pairs
+#         partner_found = False
+#         for obj_name in image_object_names_str:
+#           partners = list(kg[kg['obj']==obj_name]['other_obj'])
+#           for partner in partners:
+#             if partner in image_object_names_str:
+#               partner_found = True
+#               break
+#           if partner_found: break
+#         if not partner_found: 
+#           skip_stats['no_key_partners'] += 1
+#           continue
+      
       image_rel_ids = []
       image_rel_subs = []
       image_rel_preds = []

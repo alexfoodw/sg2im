@@ -144,7 +144,8 @@ def draw_scene_graph(objs, triples, vocab=None, **kwargs):
   # General setup, and style for object nodes
   lines = [
     'digraph{',
-    'graph [size="5,3",ratio="compress",dpi="300",bgcolor="transparent"]',
+    #'graph [size="5,3",ratio="compress",dpi="300",bgcolor="transparent"]',
+    'graph [size="5,3",ratio="compress",dpi="300",bgcolor="white"]',
     'rankdir=%s' % rankdir,
     'nodesep="0.5"',
     'ranksep="0.5"',

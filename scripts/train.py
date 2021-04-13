@@ -21,6 +21,7 @@ import json
 import math
 from collections import defaultdict
 import random
+import time
 
 import numpy as np
 import torch
@@ -48,12 +49,16 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default='coco', choices=['vg', 'coco'])
 
 # Optimization hyperparameters
-parser.add_argument('--batch_size', default=32, type=int)
-parser.add_argument('--num_iterations', default=1000000, type=int)
+# parser.add_argument('--batch_size', default=32, type=int)
+# parser.add_argument('--num_iterations', default=1000000, type=int)
+parser.add_argument('--batch_size', default=256, type=int)
+#parser.add_argument('--num_iterations', default=23482, type=int)
+parser.add_argument('--num_iterations', default=1500, type=int)
 parser.add_argument('--learning_rate', default=1e-4, type=float)
 
 # Switch the generator to eval mode after this many iterations
-parser.add_argument('--eval_mode_after', default=100000, type=int)
+#parser.add_argument('--eval_mode_after', default=100000, type=int)
+parser.add_argument('--eval_mode_after', default=150, type=int)
 
 # Dataset options common to both VG and COCO
 parser.add_argument('--image_size', default='64,64', type=int_tuple)
@@ -134,7 +139,7 @@ parser.add_argument('--d_img_weight', default=1.0, type=float) # multiplied by d
 parser.add_argument('--print_every', default=10, type=int)
 parser.add_argument('--timing', default=False, type=bool_flag)
 parser.add_argument('--checkpoint_every', default=10000, type=int)
-parser.add_argument('--output_dir', default=os.getcwd())
+parser.add_argument('--output_dir', default=os.path.join(os.getcwd(), 'trained_models'))
 parser.add_argument('--checkpoint_name', default='checkpoint')
 parser.add_argument('--checkpoint_start_from', default=None)
 parser.add_argument('--restore_from_checkpoint', default=False, type=bool_flag)
@@ -498,7 +503,8 @@ def main(args):
       'd_img_state': None, 'd_img_best_state': None, 'd_img_optim_state': None,
       'best_t': [],
     }
-
+  
+  #model = nn.DataParallel(model, device_ids=None)
   while True:
     if t >= args.num_iterations:
       break
@@ -506,6 +512,8 @@ def main(args):
     print('Starting epoch %d' % epoch)
     
     for batch in train_loader:
+      #do some stuff
+      start = time.time()
       if t == args.eval_mode_after:
         print('switching to eval mode')
         model.eval()
@@ -659,7 +667,10 @@ def main(args):
           if k not in key_blacklist:
             small_checkpoint[k] = v
         torch.save(small_checkpoint, checkpoint_path)
-
+      #do some stuff
+      stop = time.time()
+      duration = stop-start
+      print(duration)
 
 if __name__ == '__main__':
   args = parser.parse_args()

@@ -104,7 +104,8 @@ class RefinementNetwork(nn.Module):
 
     feats = torch.zeros(N, 1, input_H, input_W).to(layout)
     for mod in self.refinement_modules:
-      feats = F.upsample(feats, scale_factor=2, mode='nearest')
+      #feats = F.upsample(feats, scale_factor=2, mode='nearest')
+      feats = F.interpolate(feats, scale_factor=2, mode='nearest')
       feats = mod(layout, feats)
 
     out = self.output_conv(feats)
