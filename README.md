@@ -1,4 +1,5 @@
 # Image Generation from Scene Graphs with Commonsense Knowledge
+- Alex Foo, School of Computing, NUS
 
 This code is forked from [this](https://github.com/google/sg2im) original source code, and adapted to include a knowledge graph contextual information augmentation.
 
